@@ -1,4 +1,6 @@
+
 from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import or_
@@ -20,6 +22,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# temporary storage
+assets = []
+scan_events = []
 
 class Asset(BaseModel):
     id: int
@@ -124,3 +130,5 @@ def add_scan_event(scan_event: ScanEvent, db: Session = Depends(get_db)):
 @app.get("/scan-events")
 def get_scan_events(db: Session = Depends(get_db)):
     return db.query(ScanEventModel).all()
+def get_scan_events():
+    return scan_events
