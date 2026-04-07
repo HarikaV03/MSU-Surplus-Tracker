@@ -57,6 +57,9 @@ class Asset(Base):
     disposal_records: Mapped[list["DisposalRecord"]] = relationship(
         back_populates="asset", cascade="all, delete-orphan"
     )
+    audit_events: Mapped[list["AssetAuditEvent"]] = relationship(
+        back_populates="asset", cascade="all, delete-orphan"
+    )
 
 
 class ScanEvent(Base):
@@ -88,3 +91,20 @@ class DisposalRecord(Base):
     updated_at: Mapped[object] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())
 
     asset: Mapped["Asset | None"] = relationship(back_populates="disposal_records")
+
+
+class AssetAuditEvent(Base):
+    __tablename__ = "asset_audit_events"
+
+    audit_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    asset_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    field_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    old_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    changed_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.user_id"), nullable=True)
+    changed_at: Mapped[object] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())
+
+    asset: Mapped["Asset | None"] = relationship(back_populates="audit_events")

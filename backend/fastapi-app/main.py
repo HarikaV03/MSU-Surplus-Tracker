@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from database import Base, engine, get_db
 from models import Asset as AssetModel
+from models import AssetAuditEvent as AssetAuditEventModel
 from models import Department as DepartmentModel
 from models import DisposalRecord as DisposalRecordModel
 from models import ScanEvent as ScanEventModel
@@ -81,6 +82,7 @@ class AssetOut(BaseModel):
 
 class StatusUpdate(BaseModel):
     current_status: str
+    updated_by: int | None = None
 
 
 class ScanEventCreate(BaseModel):
@@ -149,6 +151,18 @@ class DisposalRecordOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+class AssetAuditEventOut(BaseModel):
+    audit_id: int
+    asset_id: int | None = None
+    event_type: str
+    field_name: str | None = None
+    old_value: str | None = None
+    new_value: str | None = None
+    changed_by: int | None = None
+    changed_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
 
 @app.get("/")
 def root():
@@ -202,6 +216,19 @@ def add_asset(
     db.add(new_asset)
     db.commit()
     db.refresh(new_asset)
+
+    # Audit trail (optional identity): log asset creation
+    db.add(
+        AssetAuditEventModel(
+            asset_id=new_asset.asset_id,
+            event_type="asset_created",
+            field_name=None,
+            old_value=None,
+            new_value=None,
+            changed_by=asset.submitted_by,
+        )
+    )
+    db.commit()
     return new_asset
 
 
@@ -223,9 +250,30 @@ def update_asset_status(
     asset = db.get(AssetModel, asset_id)
     if not asset:
         raise HTTPException(404, "Asset not found")
+
+    if status_update.updated_by is not None and not db.get(UserModel, status_update.updated_by):
+        raise HTTPException(400, "Invalid updated_by user_id")
+
+    old_status = asset.current_status
+    if old_status == status_update.current_status:
+        return asset
+
     asset.current_status = status_update.current_status
     db.commit()
     db.refresh(asset)
+
+    # Audit trail: status change
+    db.add(
+        AssetAuditEventModel(
+            asset_id=asset.asset_id,
+            event_type="asset_status_updated",
+            field_name="current_status",
+            old_value=old_status,
+            new_value=asset.current_status,
+            changed_by=status_update.updated_by,
+        )
+    )
+    db.commit()
     return asset
 
 
@@ -374,3 +422,15 @@ def get_asset_disposal_records(asset_id: int, db: Session = Depends(get_db)):
     if not db.get(AssetModel, asset_id):
         raise HTTPException(404, "Asset not found")
     return db.query(DisposalRecordModel).filter(DisposalRecordModel.asset_id == asset_id).all()
+
+
+@app.get("/assets/{asset_id}/audit-events", response_model=list[AssetAuditEventOut])
+def get_asset_audit_events(asset_id: int, db: Session = Depends(get_db)):
+    if not db.get(AssetModel, asset_id):
+        raise HTTPException(404, "Asset not found")
+    return (
+        db.query(AssetAuditEventModel)
+        .filter(AssetAuditEventModel.asset_id == asset_id)
+        .order_by(AssetAuditEventModel.audit_id.asc())
+        .all()
+    )

@@ -81,6 +81,18 @@ def test_assets_duplicate_and_404():
         r4 = client.get("/assets/99999999")
         assert r4.status_code == 404, r4.text
         assert r4.json()["detail"] == "Asset not found"
+
+        # status update should create audit event (with updated_by)
+        r5 = client.put(
+            f"/assets/{asset_id}/status",
+            headers=USER_HEADERS,
+            json={"current_status": "Disposed", "updated_by": None},
+        )
+        assert r5.status_code == 200, r5.text
+
+        r6 = client.get(f"/assets/{asset_id}/audit-events")
+        assert r6.status_code == 200, r6.text
+        assert any(ev["event_type"] == "asset_status_updated" for ev in r6.json())
     finally:
         _cleanup_by_asset_id(asset_id)
         _cleanup_by_asset_id(asset_id + 1)
@@ -168,4 +180,3 @@ def test_departments_users_assets_scan_events_and_disposal_records_flow():
             if dept_id is not None:
                 db.query(Department).filter(Department.department_id == dept_id).delete()
             db.commit()
-
