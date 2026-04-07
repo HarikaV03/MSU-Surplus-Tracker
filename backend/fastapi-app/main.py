@@ -1,8 +1,11 @@
 from datetime import datetime
 
+import os
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import HTTPException
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -25,6 +28,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+USER_API_KEY = os.getenv("USER_API_KEY")
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
+
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+def require_user_api_key(api_key: str | None = Depends(api_key_header)) -> str:
+    if not api_key:
+        raise HTTPException(401, "Missing API key")
+    if ADMIN_API_KEY and api_key == ADMIN_API_KEY:
+        return "admin"
+    if USER_API_KEY and api_key == USER_API_KEY:
+        return "user"
+    raise HTTPException(401, "Invalid API key")
+
+
+def require_admin_api_key(role: str = Depends(require_user_api_key)) -> str:
+    if role != "admin":
+        raise HTTPException(403, "Admin access required")
+    return role
 
 
 class AssetCreate(BaseModel):
@@ -137,7 +161,11 @@ def get_assets(db: Session = Depends(get_db)):
 
 
 @app.post("/assets", response_model=AssetOut)
-def add_asset(asset: AssetCreate, db: Session = Depends(get_db)):
+def add_asset(
+    asset: AssetCreate,
+    db: Session = Depends(get_db),
+    _role: str = Depends(require_user_api_key),
+):
     # Preserve in-memory duplicate logic, translated to SQL:
     # - duplicate id -> "Asset with this ID already exists"
     # - duplicate asset_tag -> "Asset with this barcode/asset tag already exists"
@@ -186,7 +214,12 @@ def get_asset(asset_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/assets/{asset_id}/status", response_model=AssetOut)
-def update_asset_status(asset_id: int, status_update: StatusUpdate, db: Session = Depends(get_db)):
+def update_asset_status(
+    asset_id: int,
+    status_update: StatusUpdate,
+    db: Session = Depends(get_db),
+    _role: str = Depends(require_user_api_key),
+):
     asset = db.get(AssetModel, asset_id)
     if not asset:
         raise HTTPException(404, "Asset not found")
@@ -205,7 +238,11 @@ def get_asset_by_tag(asset_tag: str, db: Session = Depends(get_db)):
 
 
 @app.post("/scan-events", response_model=ScanEventOut)
-def add_scan_event(scan_event: ScanEventCreate, db: Session = Depends(get_db)):
+def add_scan_event(
+    scan_event: ScanEventCreate,
+    db: Session = Depends(get_db),
+    _role: str = Depends(require_user_api_key),
+):
     asset = db.get(AssetModel, scan_event.asset_id)
     if not asset:
         raise HTTPException(404, "Asset not found")
@@ -236,7 +273,11 @@ def list_departments(db: Session = Depends(get_db)):
 
 
 @app.post("/departments", response_model=DepartmentOut)
-def create_department(dept: DepartmentCreate, db: Session = Depends(get_db)):
+def create_department(
+    dept: DepartmentCreate,
+    db: Session = Depends(get_db),
+    _role: str = Depends(require_admin_api_key),
+):
     new_dept = DepartmentModel(department_name=dept.department_name)
     db.add(new_dept)
     db.commit()
@@ -258,7 +299,11 @@ def list_users(db: Session = Depends(get_db)):
 
 
 @app.post("/users", response_model=UserOut)
-def create_user(user: UserCreate, db: Session = Depends(get_db)):
+def create_user(
+    user: UserCreate,
+    db: Session = Depends(get_db),
+    _role: str = Depends(require_admin_api_key),
+):
     existing = db.query(UserModel).filter(UserModel.email == user.email).first()
     if existing:
         raise HTTPException(409, "User with this email already exists")
@@ -292,7 +337,11 @@ def list_disposal_records(db: Session = Depends(get_db)):
 
 
 @app.post("/disposal-records", response_model=DisposalRecordOut)
-def create_disposal_record(record: DisposalRecordCreate, db: Session = Depends(get_db)):
+def create_disposal_record(
+    record: DisposalRecordCreate,
+    db: Session = Depends(get_db),
+    _role: str = Depends(require_admin_api_key),
+):
     if not db.get(AssetModel, record.asset_id):
         raise HTTPException(400, "Invalid asset_id")
 

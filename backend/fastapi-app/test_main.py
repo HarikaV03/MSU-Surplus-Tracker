@@ -4,17 +4,22 @@ import uuid
 
 from fastapi.testclient import TestClient
 
-#from database import SessionLocal
-#from main import app
-#from models import Asset, Department, DisposalRecord, ScanEvent, User
+# Ensure tests don't require a running Postgres instance.
+# We set DATABASE_URL *before* importing the app/database modules because they
+# build the SQLAlchemy engine at import time.
 _tmpdir = tempfile.TemporaryDirectory()
 os.environ.setdefault("DATABASE_URL", f"sqlite+pysqlite:///{_tmpdir.name}/test.db")
+os.environ.setdefault("USER_API_KEY", "test-user-key")
+os.environ.setdefault("ADMIN_API_KEY", "test-admin-key")
 
 from database import SessionLocal  # noqa: E402
 from main import app  # noqa: E402
 from models import Asset, Department, DisposalRecord, ScanEvent, User  # noqa: E402
 
+
 client = TestClient(app)
+USER_HEADERS = {"X-API-Key": os.environ["USER_API_KEY"]}
+ADMIN_HEADERS = {"X-API-Key": os.environ["ADMIN_API_KEY"]}
 
 
 def _cleanup_by_asset_id(asset_id: int):
@@ -32,6 +37,7 @@ def test_assets_duplicate_and_404():
     try:
         r = client.post(
             "/assets",
+            headers=USER_HEADERS,
             json={
                 "id": asset_id,
                 "asset_tag": asset_tag,
@@ -46,6 +52,7 @@ def test_assets_duplicate_and_404():
         # duplicate id => 409
         r2 = client.post(
             "/assets",
+            headers=USER_HEADERS,
             json={
                 "id": asset_id,
                 "asset_tag": f"TEST-{uuid.uuid4()}",
@@ -59,6 +66,7 @@ def test_assets_duplicate_and_404():
         # duplicate asset_tag => 409
         r3 = client.post(
             "/assets",
+            headers=USER_HEADERS,
             json={
                 "id": asset_id + 1,
                 "asset_tag": asset_tag,
@@ -89,14 +97,15 @@ def test_departments_users_assets_scan_events_and_disposal_records_flow():
     record_id = None
     scan_id = None
     try:
-        # create department
-        r = client.post("/departments", json={"department_name": dept_name})
+        # create department (admin)
+        r = client.post("/departments", headers=ADMIN_HEADERS, json={"department_name": dept_name})
         assert r.status_code == 200, r.text
         dept_id = r.json()["department_id"]
 
         # create user in department
         r2 = client.post(
             "/users",
+            headers=ADMIN_HEADERS,
             json={"full_name": "Test User", "email": user_email, "role": "staff", "department_id": dept_id},
         )
         assert r2.status_code == 200, r2.text
@@ -105,6 +114,7 @@ def test_departments_users_assets_scan_events_and_disposal_records_flow():
         # create asset linked to department + submitted_by
         r3 = client.post(
             "/assets",
+            headers=USER_HEADERS,
             json={
                 "id": asset_id,
                 "asset_tag": asset_tag,
@@ -121,6 +131,7 @@ def test_departments_users_assets_scan_events_and_disposal_records_flow():
         # scan event linked to asset + scanned_by
         r4 = client.post(
             "/scan-events",
+            headers=USER_HEADERS,
             json={"asset_id": asset_id, "scan_location": "Warehouse A", "scanned_by": user_id},
         )
         assert r4.status_code == 200, r4.text
@@ -131,6 +142,7 @@ def test_departments_users_assets_scan_events_and_disposal_records_flow():
         # disposal record linked to asset
         r5 = client.post(
             "/disposal-records",
+            headers=ADMIN_HEADERS,
             json={"asset_id": asset_id, "recommended_action": "Recycle", "notes": "test"},
         )
         assert r5.status_code == 200, r5.text
