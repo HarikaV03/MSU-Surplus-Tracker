@@ -1,11 +1,18 @@
+import os
+import tempfile
 import uuid
 
 from fastapi.testclient import TestClient
 
-from database import SessionLocal
-from main import app
-from models import Asset, Department, DisposalRecord, ScanEvent, User
+#from database import SessionLocal
+#from main import app
+#from models import Asset, Department, DisposalRecord, ScanEvent, User
+_tmpdir = tempfile.TemporaryDirectory()
+os.environ.setdefault("DATABASE_URL", f"sqlite+pysqlite:///{_tmpdir.name}/test.db")
 
+from database import SessionLocal  # noqa: E402
+from main import app  # noqa: E402
+from models import Asset, Department, DisposalRecord, ScanEvent, User  # noqa: E402
 
 client = TestClient(app)
 

@@ -1,8 +1,8 @@
 from datetime import datetime
-from http.client import HTTPException
+
 from fastapi import Depends, FastAPI
-from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -25,7 +25,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-class Asset(BaseModel):
+
+
+class AssetCreate(BaseModel):
     id: int
     asset_tag: str
     item_name: str
@@ -57,7 +59,7 @@ class StatusUpdate(BaseModel):
     current_status: str
 
 
-class ScanEvent(BaseModel):
+class ScanEventCreate(BaseModel):
     asset_id: int
     scan_location: str
     scanned_by: int | None = None
@@ -135,7 +137,7 @@ def get_assets(db: Session = Depends(get_db)):
 
 
 @app.post("/assets", response_model=AssetOut)
-def add_asset(asset: Asset, db: Session = Depends(get_db)):
+def add_asset(asset: AssetCreate, db: Session = Depends(get_db)):
     # Preserve in-memory duplicate logic, translated to SQL:
     # - duplicate id -> "Asset with this ID already exists"
     # - duplicate asset_tag -> "Asset with this barcode/asset tag already exists"
@@ -146,19 +148,17 @@ def add_asset(asset: Asset, db: Session = Depends(get_db)):
     )
     for row in existing:
         if row.asset_id == asset.id:
-            raise HTTPException(status_code=409, detail="Asset with this ID already exists")
+            raise HTTPException(409, "Asset with this ID already exists")
         if row.asset_tag == asset.asset_tag:
-            raise HTTPException(
-                status_code=409, detail="Asset with this barcode/asset tag already exists"
-            )
-        
+            raise HTTPException(409, "Asset with this barcode/asset tag already exists")
+
     if asset.department_id is not None:
         if not db.get(DepartmentModel, asset.department_id):
-            raise HTTPException(status_code=400, detail="Invalid department_id")
+            raise HTTPException(400, "Invalid department_id")
 
     if asset.submitted_by is not None:
         if not db.get(UserModel, asset.submitted_by):
-            raise HTTPException(status_code=400, detail="Invalid submitted_by user_id")
+            raise HTTPException(400, "Invalid submitted_by user_id")
 
     new_asset = AssetModel(
         asset_id=asset.id,
@@ -181,7 +181,7 @@ def add_asset(asset: Asset, db: Session = Depends(get_db)):
 def get_asset(asset_id: int, db: Session = Depends(get_db)):
     asset = db.get(AssetModel, asset_id)
     if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise HTTPException(404, "Asset not found")
     return asset
 
 
@@ -189,39 +189,46 @@ def get_asset(asset_id: int, db: Session = Depends(get_db)):
 def update_asset_status(asset_id: int, status_update: StatusUpdate, db: Session = Depends(get_db)):
     asset = db.get(AssetModel, asset_id)
     if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise HTTPException(404, "Asset not found")
     asset.current_status = status_update.current_status
     db.commit()
     db.refresh(asset)
     return asset
 
-@app.get("/assets/by-tag/{asset_tag}")
+
+@app.get("/assets/by-tag/{asset_tag}", response_model=AssetOut)
 def get_asset_by_tag(asset_tag: str, db: Session = Depends(get_db)):
     asset = db.query(AssetModel).filter(AssetModel.asset_tag == asset_tag).first()
     if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise HTTPException(404, "Asset not found")
     return asset
 
 
 @app.post("/scan-events", response_model=ScanEventOut)
-def add_scan_event(scan_event: ScanEvent, db: Session = Depends(get_db)):
+def add_scan_event(scan_event: ScanEventCreate, db: Session = Depends(get_db)):
     asset = db.get(AssetModel, scan_event.asset_id)
     if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
-    
+        raise HTTPException(404, "Asset not found")
+
     if scan_event.scanned_by is not None:
         if not db.get(UserModel, scan_event.scanned_by):
-            raise HTTPException(status_code=400, detail="Invalid scanned_by user_id")
+            raise HTTPException(400, "Invalid scanned_by user_id")
 
-    event = ScanEventModel(asset_id=scan_event.asset_id, scan_location=scan_event.scan_location,scanned_by=scan_event.scanned_by,)
+    event = ScanEventModel(
+        asset_id=scan_event.asset_id,
+        scan_location=scan_event.scan_location,
+        scanned_by=scan_event.scanned_by,
+    )
     db.add(event)
     db.commit()
     db.refresh(event)
     return event
 
-@app.get("/scan-events")
+
+@app.get("/scan-events", response_model=list[ScanEventOut])
 def get_scan_events(db: Session = Depends(get_db)):
     return db.query(ScanEventModel).all()
+
 
 @app.get("/departments", response_model=list[DepartmentOut])
 def list_departments(db: Session = Depends(get_db)):
@@ -241,7 +248,7 @@ def create_department(dept: DepartmentCreate, db: Session = Depends(get_db)):
 def get_department(department_id: int, db: Session = Depends(get_db)):
     dept = db.get(DepartmentModel, department_id)
     if not dept:
-        raise HTTPException(status_code=404, detail="Department not found")
+        raise HTTPException(404, "Department not found")
     return dept
 
 
@@ -254,10 +261,10 @@ def list_users(db: Session = Depends(get_db)):
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
     existing = db.query(UserModel).filter(UserModel.email == user.email).first()
     if existing:
-        raise HTTPException(status_code=409, detail="User with this email already exists")
+        raise HTTPException(409, "User with this email already exists")
 
     if user.department_id is not None and not db.get(DepartmentModel, user.department_id):
-        raise HTTPException(status_code=400, detail="Invalid department_id")
+        raise HTTPException(400, "Invalid department_id")
 
     new_user = UserModel(
         full_name=user.full_name,
@@ -275,7 +282,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
 def get_user(user_id: int, db: Session = Depends(get_db)):
     user = db.get(UserModel, user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(404, "User not found")
     return user
 
 
@@ -287,10 +294,10 @@ def list_disposal_records(db: Session = Depends(get_db)):
 @app.post("/disposal-records", response_model=DisposalRecordOut)
 def create_disposal_record(record: DisposalRecordCreate, db: Session = Depends(get_db)):
     if not db.get(AssetModel, record.asset_id):
-        raise HTTPException(status_code=400, detail="Invalid asset_id")
+        raise HTTPException(400, "Invalid asset_id")
 
     if record.approved_by is not None and not db.get(UserModel, record.approved_by):
-        raise HTTPException(status_code=400, detail="Invalid approved_by user_id")
+        raise HTTPException(400, "Invalid approved_by user_id")
 
     new_record = DisposalRecordModel(
         asset_id=record.asset_id,
@@ -309,12 +316,12 @@ def create_disposal_record(record: DisposalRecordCreate, db: Session = Depends(g
 def get_disposal_record(record_id: int, db: Session = Depends(get_db)):
     record = db.get(DisposalRecordModel, record_id)
     if not record:
-        raise HTTPException(status_code=404, detail="Disposal record not found")
+        raise HTTPException(404, "Disposal record not found")
     return record
 
 
 @app.get("/assets/{asset_id}/disposal-records", response_model=list[DisposalRecordOut])
 def get_asset_disposal_records(asset_id: int, db: Session = Depends(get_db)):
     if not db.get(AssetModel, asset_id):
-        raise HTTPException(status_code=404, detail="Asset not found")
+        raise HTTPException(404, "Asset not found")
     return db.query(DisposalRecordModel).filter(DisposalRecordModel.asset_id == asset_id).all()

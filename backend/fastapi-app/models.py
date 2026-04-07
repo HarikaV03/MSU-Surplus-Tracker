@@ -54,6 +54,9 @@ class Asset(Base):
         back_populates="submitted_assets", foreign_keys=[submitted_by]
     )
     scan_events: Mapped[list["ScanEvent"]] = relationship(back_populates="asset", cascade="all, delete-orphan")
+    disposal_records: Mapped[list["DisposalRecord"]] = relationship(
+        back_populates="asset", cascade="all, delete-orphan"
+    )
 
 
 class ScanEvent(Base):
@@ -69,3 +72,19 @@ class ScanEvent(Base):
 
     asset: Mapped["Asset | None"] = relationship(back_populates="scan_events")
     scanned_by_user: Mapped["User | None"] = relationship(back_populates="scan_events")
+
+
+class DisposalRecord(Base):
+    __tablename__ = "disposal_records"
+
+    record_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    asset_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    recommended_action: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    final_action: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    approved_by: Mapped[int | None] = mapped_column(Integer, ForeignKey("users.user_id"), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[object] = mapped_column(TIMESTAMP, server_default=func.current_timestamp())
+
+    asset: Mapped["Asset | None"] = relationship(back_populates="disposal_records")
