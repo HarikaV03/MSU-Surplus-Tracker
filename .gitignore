@@ -7,3 +7,4 @@ venv/
 .env
 .env.*
 !.env.example
+backend/fastapi-app/*.db
