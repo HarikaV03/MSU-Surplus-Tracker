@@ -34,22 +34,18 @@ export default function AddAsset() {
     e.preventDefault()
     setLoading(true)
 
-    // Send data to backend API
-    const result = await addAsset({
-      ...form,
-      id: Number(form.id), // convert ID to number
-    })
+    try {
+      await addAsset({
+        ...form,
+        id: Number(form.id), // convert ID to number
+      })
 
-    setLoading(false)
-
-    // Basic success/error handling
-    if (result.error) {
-      alert(result.error)
-    } else {
       alert("Asset added successfully!")
-
-      //  Redirect back to dashboard after success
       router.push("/")
+    } catch (err) {
+      alert(err?.message || "Failed to add asset")
+    } finally {
+      setLoading(false)
     }
   }
 
