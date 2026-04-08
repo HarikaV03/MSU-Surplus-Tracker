@@ -3,6 +3,13 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except Exception:
+    # Optional dependency; app can still run with exported env vars.
+    pass
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
