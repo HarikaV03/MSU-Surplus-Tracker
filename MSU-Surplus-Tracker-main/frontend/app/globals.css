@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+/* You can add custom MSU styles directly here later */
+@theme {
+  --color-msu-green: #18453b;
+}
