@@ -2,11 +2,11 @@
 .env.*
 !.env.example
 
-venv/
-.venv/
-backend/fastapi-app/*.db
-
-# Frontend
+# Node / Next.js
+node_modules/
+.next/
+out/
+build/
 frontend/**/node_modules/
 frontend/**/.next/
 frontend/**/out/
@@ -16,11 +16,26 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.py[cod]
+*$py.class
 .pytest_cache/
 .mypy_cache/
 .coverage
 .coverage.*
 .cache
+venv/
+.venv/
+env/
 nosetests.xml
-coverage.xml    
+coverage.xml
+
+# Databases
+*.db
+*.sqlite3
+backend/fastapi-app/*.db
+
+# OS files
+.DS_Store
+
+# Optional: keep lockfile untracked for now
 frontend/nextjs-app/package-lock.json

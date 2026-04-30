@@ -1,0 +1,15 @@
+{
+  "name": "MSU Surplus Tracker",
+  "portsAttributes": {
+    "8000": {
+      "label": "Backend API",
+      "onAutoForward": "notify",
+      "visibility": "public"
+    },
+    "3000": {
+      "label": "Frontend",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    }
+  }
+}

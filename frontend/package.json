@@ -1,0 +1,28 @@
+{
+  "name": "surplus-tracker",
+  "version": "1.0.0",
+  "description": "by Aretha Fontaine and Harika Vemulapalli",
+  "main": "index.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ArieMooves/Surplus-Tracker.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "next": "^13.5.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "bugs": {
+    "url": "https://github.com/ArieMooves/Surplus-Tracker/issues"
+  },
+  "homepage": "https://github.com/ArieMooves/Surplus-Tracker#readme"
+}
