@@ -1,16 +1,28 @@
 
 const getBaseUrl = () => {
+  // Always prefer an explicit env override when provided.
+  // This is the most reliable option in Codespaces/preview URLs.
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl) return envUrl;
+
   if (typeof window !== "undefined") {
     const hostname = window.location.hostname;
     
-    // Check if we are in a GitHub Codespace
-    if (hostname.includes("github.dev") || hostname.includes("app.github.dev")) {
-      // Replace the frontend port (3000) with the backend port (8000)
-      return `https://${hostname.replace('-3000', '-8000')}`;
+    // GitHub Codespaces forwarded ports use hostnames like:
+    // <name>-3000.app.github.dev, <name>-3001.app.github.dev, etc.
+    // Convert whatever frontend port we are on to backend port 8000.
+    if (
+      hostname.includes("app.github.dev") ||
+      hostname.includes("preview.app.github.dev") ||
+      hostname.includes("githubpreview.dev")
+    ) {
+      // Replace "-<port>." with "-8000." (works for 3000/3001/etc).
+      const mapped = hostname.replace(/-\d+\./, "-8000.");
+      return `https://${mapped}`;
     }
   }
   // Fallback for local development or production env
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  return "http://localhost:8000";
 };
 
 const BASE_URL = getBaseUrl();
@@ -39,7 +51,7 @@ export async function getAssets() {
 // GET asset by Asset Tag 
 export async function getAssetByTag(tag) {
   try {
-    const res = await fetch(`${BASE_URL}/assets/${tag}`);
+    const res = await fetch(`${BASE_URL}/assets/by-tag/${encodeURIComponent(tag)}`);
     return await handleResponse(res);
   } catch (err) {
     console.error(`getAsset ${tag} failed:`, err);

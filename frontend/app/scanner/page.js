@@ -34,16 +34,17 @@ export default function ScannerPage() {
   }, [activeTab]);
 
   const handleScan = async (decodedText) => {
-    if (!decodedText) return;
+    const value = (decodedText || "").trim();
+    if (!value) return;
     setError(null);
     try {
-      const asset = await getAssetByTag(decodedText);
+      const asset = await getAssetByTag(value);
       setScannedAsset(asset);
       // Clear input after success for next wand scan
       if (barcodeInputRef.current) barcodeInputRef.current.value = "";
     } catch (err) {
       setScannedAsset(null);
-      setError(`Tag "${decodedText}" not found in MSU Database`);
+      setError(`Tag "${value}" not found in MSU Database`);
     }
   };
 

@@ -7,7 +7,10 @@ from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
-import google.generativeai as genai
+try:
+    import google.generativeai as genai
+except Exception:  # optional dependency for AI features
+    genai = None
 
 from database import Base, engine, get_db
 import models
@@ -26,8 +29,10 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="MSU Surplus Tracker API")
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-1.5-flash-lite') 
+model = None
+if genai is not None and os.getenv("GEMINI_API_KEY"):
+    genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+    model = genai.GenerativeModel("gemini-1.5-flash-lite")
 
 app.add_middleware(
     CORSMiddleware,
@@ -133,8 +138,11 @@ def root():
 
 @app.post("/generate-description")
 async def generate_description(req: AIDescriptionRequest):
-    if not os.getenv("GEMINI_KEY"):
-        raise HTTPException(status_code=500, detail="Gemini API Key not configured")
+    if genai is None or model is None:
+        raise HTTPException(
+            status_code=501,
+            detail="AI description feature is not configured on this server",
+        )
     
     try:
         prompt = (
